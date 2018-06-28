@@ -133,14 +133,15 @@ xpc_object_t XpcConnection::ObjectToXpcObject(Local<Object> object) {
   xpc_object_t xpcObject = xpc_dictionary_create(NULL, NULL, 0);
 
   Local<Array> propertyNames = object->GetPropertyNames();
+  Local<Context> ctx = object->CreationContext();
 
-  for(uint32_t i = 0; i < propertyNames->Length(); i++) {
+  for(uint32_t i = 0; i < propertyNames->Length(); ++i) {
     Local<Value> propertyName = propertyNames->Get(i);
 
     if (propertyName->IsString()) {
       Nan::Utf8String propertyNameString(propertyName);
 
-      Local<Value> propertyValue = object->GetRealNamedProperty(propertyName->ToString());
+      Local<Value> propertyValue = object->GetRealNamedProperty(ctx, propertyName->ToString()).ToLocalChecked();
 
       xpc_object_t xpcValue = XpcConnection::ValueToXpcObject(propertyValue);
       xpc_dictionary_set_value(xpcObject, *propertyNameString, xpcValue);
@@ -156,7 +157,7 @@ xpc_object_t XpcConnection::ObjectToXpcObject(Local<Object> object) {
 xpc_object_t XpcConnection::ArrayToXpcObject(Local<Array> array) {
   xpc_object_t xpcArray = xpc_array_create(NULL, 0);
 
-  for(uint32_t i = 0; i < array->Length(); i++) {
+  for(uint32_t i = 0; i < array->Length(); ++i) {
     Local<Value> value = array->Get(i);
 
     xpc_object_t xpcValue = XpcConnection::ValueToXpcObject(value);
@@ -251,7 +252,7 @@ void XpcConnection::processEventQueue() {
         Nan::New(message).ToLocalChecked()
       };
 
-      Nan::MakeCallback(Nan::New<Object>(this->This), Nan::New("emit").ToLocalChecked(), 2, argv);
+      Nan::AsyncResource("xpc:event-error").runInAsyncScope(Nan::New<Object>(this->This), Nan::New("emit").ToLocalChecked(), 2, argv);
     } else if (eventType == XPC_TYPE_DICTIONARY) {
       Local<Object> eventObject = XpcConnection::XpcDictionaryToObject(event);
 
@@ -260,7 +261,7 @@ void XpcConnection::processEventQueue() {
         eventObject
       };
 
-      Nan::MakeCallback(Nan::New<Object>(this->This), Nan::New("emit").ToLocalChecked(), 2, argv);
+      Nan::AsyncResource("xpc:event-type-dictionary").runInAsyncScope(Nan::New<Object>(this->This), Nan::New("emit").ToLocalChecked(), 2, argv);
     }
 
     xpc_release(event);
